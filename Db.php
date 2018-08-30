@@ -2,6 +2,7 @@
 /**
  * MYSQL 单例封装类
  * 静态入口  name
+ * 支持事务
  */
 header("content-type:text/html;charset=utf-8");
 class Db
