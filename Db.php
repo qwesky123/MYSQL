@@ -228,7 +228,12 @@ class Db
                             $where .= " '{$v[1]}'";
                         }
                     }else{
-                        $where .= " ".$v[1][0]." AND ".$v[1][1];
+                        if($v[0]=='IN'){
+                            $where .= " $v[0] (".implode(",",$v[1]).")";
+                        }else{
+                            $where .= " ".$v[1][0]." AND ".$v[1][1];
+                        }
+
                     }
                 }
             }
