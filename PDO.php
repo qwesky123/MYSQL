@@ -7,12 +7,20 @@
 header("content-type:text/html;charset=utf-8");
 class Db
 {
-    private $config = [
+    private $db = [
+        'dsn'=>'mysql:host=localhost;dbname=new;port=3306;charset=utf8',
         'host'=>'127.0.0.1',
         'username'=>'root',
         'password'=>'root',
         'dbname'=>'new',
+        'port'=>3306,
+        'charset'=>'utf8'
     ];
+
+    private $options = array(
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, //默认是PDO::ERRMODE_SILENT, 0, (忽略错误模式)
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, // 默认是PDO::FETCH_BOTH, 4
+    );
 
     //数据库表前缀
     private static $ex = 'el_';
@@ -21,76 +29,52 @@ class Db
     //记录当前WHERE条件
     private $whereStr;
     //私有的静态属性
-    private static $dbcon=false;
+    private $pdo=false;
     //定义一个sql
     private static $sql;
     //返回sql语句标识 true 直接返回sql语句 false 执行查询
     private $returnSql = false;
     //私有的构造方法
-    private function __construct(){
-        $dbcon=@mysql_connect($this->config['host'],$this->config['username'],$this->config['password']);
-        mysql_select_db($this->config['dbname'],$dbcon) or die("mysql_connect error");
-        mysql_query("set names utf8");
+    public function __construct(){
+        try{
+            $this->pdo = new PDO($this->db['dsn'], $this->db['username'], $this->db['password'], $this->options);
+        }catch(PDOException $e){
+            die('数据库连接失败:' . $e->getMessage());
+        }
     }
     //私有的克隆方法
     private function __clone(){}
     //公用的静态方法
-    public static function name($name=''){
-        if(self::$dbcon==false){
-            self::$dbcon=new self;
-        }
-        if(!empty($name)){
-            self::$sql .= self::$ex.$name;
-            self::$table = self::$ex.$name;
-        }
-        return self::$dbcon;
+    public function name($name=''){
+        self::$sql .= self::$ex.$name;
+        self::$table = self::$ex.$name;
+
+        return $this;
     }
     //执行语句
     public function query($sql){
-        $query=mysql_query($sql);
+        $query=$this->pdo->query($sql);
         return $query;
     }
     /**
-     * 查询某个字段
-     * @param
-     * @return string or int
+     * 获取一行
      */
     public function getOne($sql){
-        $query=$this->query($sql);
-        return mysql_result($query,0);
+        $stm = $this->query($sql);
+        $result = $stm->fetch();
+        return $result;
     }
-    //获取一行记录,return array 一维数组
-    public function getRow($sql,$type="assoc"){
-        $query=$this->query($sql);
-        if(!in_array($type,array("assoc",'array',"row"))){
-            die("mysql_query error");
-        }
-        $funcname="mysql_fetch_".$type;
-        return $funcname($query);
-    }
-    //获取一条记录,前置条件通过资源获取一条记录
-    public function getFormSource($query,$type="assoc"){
-        if(!in_array($type,array("assoc","array","row")))
-        {
-            die("mysql_query error");
-        }
-        $funcname="mysql_fetch_".$type;
-        return $funcname($query);
-    }
-    //获取多条数据，二维数组
-    public function getAll($sql){
-        $query=$this->query($sql);
 
-        $list=array();
-        while ($r=$this->getFormSource($query)) {
-            $list[]=$r;
-        }
-        return $list;
+    /**
+     * 获取全部
+     */
+    public function getAll($sql){
+        $stm = $this->query($sql);
+        $result = $stm->fetchAll();
+        return $result;
+
     }
-    //获得最后一条记录id
-    public function getInsertid(){
-        return mysql_insert_id();
-    }
+
     /**
      * 定义添加数据的方法
      * @param table
@@ -118,9 +102,9 @@ class Db
         if($this->returnSql){
             return self::$sql;
         }
-        $this->query(self::$sql);
+        $result = $this->query(self::$sql);
         //返回上一次增加操做产生ID值
-        return mysql_insert_id();
+        return $this->pdo->lastInsertId();
     }
     /**
      * 删除一条数据
@@ -137,16 +121,15 @@ class Db
             $condition = $where;
         }
         $sql = "delete from $table where $condition";
-        $this->query($sql);
+        $result = $this->query($sql);
         //返回受影响的行数
-        return mysql_affected_rows();
+        return $result->rowCount();
     }
     /**
+    * 删除多条数据方法
+    * @param1 $table, $where 表名 条件
     * @return 受影响的行数
-     * 删除多条数据方法
-     * @param1 $table, $where 表名 条件
-     * @return 受影响的行数
-     */
+    */
     public function deleteAll($table, $where){
         if(is_array($where)){
             foreach ($where as $key => $val) {
@@ -160,9 +143,9 @@ class Db
             $condition = $where;
         }
         $sql = "delete from $table where $condition";
-        $this->query($sql);
+        $result = $this->query($sql);
         //返回受影响的行数
-        return mysql_affected_rows();
+        return $result->rowCount();
     }
     /**
      * 删除函数 （连贯操作）
@@ -176,9 +159,9 @@ class Db
         if($this->returnSql){
             return self::$sql;
         }
-        $this->query(self::$sql);
+        $result = $this->query(self::$sql);
         //返回受影响的行数
-        return mysql_affected_rows();
+        return $result->rowCount();
     }
     /**
      * [修改操作description] (连贯操作)
@@ -199,9 +182,9 @@ class Db
         if($this->returnSql){
             return self::$sql;
         }
-        $this->query(self::$sql);
+        $result = $this->query(self::$sql);
         //返回受影响的行数
-        return mysql_affected_rows();
+        return $result->rowCount();
     }
 
     /**
@@ -280,7 +263,7 @@ class Db
         if($this->returnSql){
             return self::$sql;
         }
-        $result = $this->getRow(self::$sql);
+        $result = $this->getOne(self::$sql);
         return $result;
     }
 
@@ -315,7 +298,7 @@ class Db
     public function sum($val){
         if(!empty($val)){
             self::$sql = "SELECT sum({$val}) as {$val} FROM ".self::$sql;
-            $result = mysql_fetch_assoc($this->query(self::$sql))[$val];
+            $result = $this->query(self::$sql);
             return $result;
         }else{
             throw new Exception("sum方法参数必填");
@@ -345,8 +328,7 @@ class Db
      *  使用形式：Db::name()->Transaction()
      */
     public function Transaction(){
-        mysql_query("SET AUTOCOMMIT=0");
-        mysql_query("start transaction");
+        self::$dbcon->beginTransaction();
     }
     /**
      * 事务回滚
@@ -354,7 +336,7 @@ class Db
      *  使用形式：Db::name()->rollback()
      */
     public function rollback(){
-        mysql_query("ROLLBACK");
+        self::$dbcon->rollBack();
     }
     /**
      * 提交事务
@@ -362,7 +344,7 @@ class Db
      * 使用形式：Db::name()->commit()
      */
     public function commit(){
-        mysql_query("commit");
+        self::$dbcon->commit();
     }
     /**
      * join 关联表
